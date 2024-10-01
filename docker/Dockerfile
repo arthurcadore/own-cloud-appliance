@@ -1,0 +1,1 @@
+FROM owncloud/server:10.15
