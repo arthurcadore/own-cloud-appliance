@@ -1,179 +1,102 @@
-```
-Setting	Default	Description
-OWNCLOUD_CHUNK_SIZE
+## Auto configuration via environment variables
+The Nextcloud image supports auto configuration via environment variables. You can preconfigure everything that is asked on the install page on first run. To enable auto configuration, set your database connection via the following environment variables. You must specify all of the environment variables for a given database or the database environment variables defaults to SQLITE. ONLY use one database type!
 
-10000000
-(or 10 MB)
+__SQLite__:
+- `SQLITE_DATABASE` Name of the database using sqlite
 
-Specifies the initial chunk size of uploaded files in bytes. The client will dynamically adjust this size within the maximum and minimum bounds (see below). To disable chunking completely, set OWNCLOUD_CHUNK_SIZE=0 .
+__MYSQL/MariaDB__:
+- `MYSQL_DATABASE` Name of the database using mysql / mariadb.
+- `MYSQL_USER` Username for the database using mysql / mariadb.
+- `MYSQL_PASSWORD` Password for the database user using mysql / mariadb.
+- `MYSQL_HOST` Hostname of the database server using mysql / mariadb.
 
-OWNCLOUD_MAX_CHUNK_SIZE
+__PostgreSQL__:
+- `POSTGRES_DB` Name of the database using postgres.
+- `POSTGRES_USER` Username for the database using postgres.
+- `POSTGRES_PASSWORD` Password for the database user using postgres.
+- `POSTGRES_HOST` Hostname of the database server using postgres.
 
-100000000
-(or 100 MB)
+As an alternative to passing sensitive information via environment variables, `_FILE` may be appended to the previously listed environment variables, causing the initialization script to load the values for those variables from files present in the container. See [Docker secrets](#docker-secrets) section below.
 
-Specifies the maximum chunk size of uploaded files in bytes.
+If you set any group of values (i.e. all of `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_HOST`), they will not be asked in the install page on first run. With a complete configuration by using all variables for your database type, you can additionally configure your Nextcloud instance by setting admin user and password (only works if you set both):
 
-OWNCLOUD_MIN_CHUNK_SIZE
+- `NEXTCLOUD_ADMIN_USER` Name of the Nextcloud admin user.
+- `NEXTCLOUD_ADMIN_PASSWORD` Password for the Nextcloud admin user.
 
-1000000
-(or 1 MB)
+If you want, you can set the data directory, otherwise default value will be used.
 
-Specifies the minimum chunk size of uploaded files in bytes.
+- `NEXTCLOUD_DATA_DIR` (default: `/var/www/html/data`) Configures the data directory where nextcloud stores all files from the users.
 
-OWNCLOUD_TARGET_CHUNK_UPLOAD_DURATION
+One or more trusted domains can be set through environment variable, too. They will be added to the configuration after install.
 
-60000
+- `NEXTCLOUD_TRUSTED_DOMAINS` (not set by default) Optional space-separated list of domains
 
-Target duration in milliseconds for chunk uploads. The client adjusts the chunk size until each chunk upload takes approximately this long. Set to 0 to disable dynamic chunk sizing.
+The install and update script is only triggered when a default command is used (`apache-foreground` or `php-fpm`). If you use a custom command you have to enable the install / update with
 
-OWNCLOUD_CHUNKING_NG
+- `NEXTCLOUD_UPDATE` (default: `0`)
 
-depend on server capability
+You might want to make sure the htaccess is up to date after each container update. Especially on multiple swarm nodes as any discrepancy will make your server unusable.
 
-Force-enable ("1") or force-disable ("0") the NG chunking algorithm.
+- `NEXTCLOUD_INIT_HTACCESS` (not set by default) Set it to true to enable run `occ maintenance:update:htaccess` after container initialization.
 
-OWNCLOUD_NO_TUS
+If you want to use Redis you have to create a separate [Redis](https://hub.docker.com/_/redis/) container in your setup / in your docker-compose file. To inform Nextcloud about the Redis container, pass in the following parameters:
 
-Set to any value to disable uploads using the tus protocol
+- `REDIS_HOST` (not set by default) Name of Redis container
+- `REDIS_HOST_PORT` (default: `6379`) Optional port for Redis, only use for external Redis servers that run on non-standard ports.
+- `REDIS_HOST_PASSWORD` (not set by default) Redis password
 
-OWNCLOUD_TIMEOUT
+The use of Redis is recommended to prevent file locking problems. See the examples for further instructions.
 
-300
+To use an external SMTP server, you have to provide the connection details. Note that if you configure these values via Docker, you should **not** use the Nexcloud Web UI to configure external SMTP server parameters. Conversely, if you prefer to use the Web UI, do **not** set these variables here (because these variables will override whatever you attempt to set in the Web UI for these parameters). To configure Nextcloud to use SMTP add:
 
-The timeout for network connections in seconds.
+- `SMTP_HOST` (not set by default): The hostname of the SMTP server.
+- `SMTP_SECURE` (empty by default): Set to `ssl` to use SSL, or `tls` to use STARTTLS.
+- `SMTP_PORT` (default: `465` for SSL and `25` for non-secure connections): Optional port for the SMTP connection. Use `587` for an alternative port for STARTTLS.
+- `SMTP_AUTHTYPE` (default: `LOGIN`): The method used for authentication. Use `PLAIN` if no authentication is required.
+- `SMTP_NAME` (empty by default): The username for the authentication.
+- `SMTP_PASSWORD` (empty by default): The password for the authentication.
+- `MAIL_FROM_ADDRESS` (not set by default): Set the local-part for the 'from' field in the emails sent by Nextcloud.
+- `MAIL_DOMAIN` (not set by default): Set a different domain for the emails than the domain where Nextcloud is installed.
 
-OWNCLOUD_CRITICAL_FREE_SPACE_BYTES
+At least `SMTP_HOST`, `MAIL_FROM_ADDRESS` and `MAIL_DOMAIN` must be set for the configurations to be applied.
 
-50*1000*1000 bytes
+Check the [Nextcloud documentation](https://docs.nextcloud.com/server/latest/admin_manual/configuration_server/email_configuration.html) for other values to configure SMTP.
 
-The minimum disk space needed for operation. A fatal error is raised if less free space is available.
+To use an external S3 compatible object store as primary storage, set the following variables:
+- `OBJECTSTORE_S3_BUCKET`: The name of the bucket that Nextcloud should store the data in
+- `OBJECTSTORE_S3_REGION`: The region that the S3 bucket resides in
+- `OBJECTSTORE_S3_HOST`: The hostname of the object storage server
+- `OBJECTSTORE_S3_PORT`: The port that the object storage server is being served over
+- `OBJECTSTORE_S3_KEY`: AWS style access key
+- `OBJECTSTORE_S3_SECRET`: AWS style secret access key
+- `OBJECTSTORE_S3_STORAGE_CLASS`: The storage class to use when adding objects to the bucket
+- `OBJECTSTORE_S3_SSL` (default: `true`): Whether or not SSL/TLS should be used to communicate with object storage server
+- `OBJECTSTORE_S3_USEPATH_STYLE` (default: `false`): Not required for AWS S3
+- `OBJECTSTORE_S3_LEGACYAUTH` (default: `false`): Not required for AWS S3
+- `OBJECTSTORE_S3_OBJECT_PREFIX` (default: `urn:oid:`): Prefix to prepend to the fileid
+- `OBJECTSTORE_S3_AUTOCREATE` (default: `true`): Create the container if it does not exist
+- `OBJECTSTORE_S3_SSE_C_KEY` (not set by default): Base64 encoded key with a maximum length of 32 bytes for server side encryption (SSE-C)
 
-OWNCLOUD_FREE_SPACE_BYTES
+Check the [Nextcloud documentation](https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/primary_storage.html#simple-storage-service-s3) for more information.
 
-250*1000*1000 bytes
+To use an external OpenStack Swift object store as primary storage, set the following variables:
+- `OBJECTSTORE_SWIFT_URL`: The Swift identity (Keystone) endpoint
+- `OBJECTSTORE_SWIFT_AUTOCREATE` (default: `false`): Whether or not Nextcloud should automatically create the Swift container
+- `OBJECTSTORE_SWIFT_USER_NAME`: Swift username
+- `OBJECTSTORE_SWIFT_USER_PASSWORD`: Swift user password
+- `OBJECTSTORE_SWIFT_USER_DOMAIN` (default: `Default`): Swift user domain
+- `OBJECTSTORE_SWIFT_PROJECT_NAME`: OpenStack project name
+- `OBJECTSTORE_SWIFT_PROJECT_DOMAIN` (default: `Default`): OpenStack project domain
+- `OBJECTSTORE_SWIFT_SERVICE_NAME` (default: `swift`): Swift service name
+- `OBJECTSTORE_SWIFT_REGION`: Swift endpoint region
+- `OBJECTSTORE_SWIFT_CONTAINER_NAME`: Swift container (bucket) that Nextcloud should store the data in
 
-Downloads that would reduce the free space below this value are skipped. More information available under the "Low Disk Space" section.
+Check the [Nextcloud documentation](https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/primary_storage.html#openstack-swift) for more information.
 
-OWNCLOUD_MAX_PARALLEL
+To customize other PHP limits you can simply change the following variables:
+- `PHP_MEMORY_LIMIT` (default `512M`) This sets the maximum amount of memory in bytes that a script is allowed to allocate. This is meant to help prevent poorly written scripts from eating up all available memory but it can prevent normal operation if set too tight.
+- `PHP_UPLOAD_LIMIT` (default `512M`) This sets the upload limit (`post_max_size` and `upload_max_filesize`) for big files. Note that you may have to change other limits depending on your client, webserver or operating system. Check the [Nextcloud documentation](https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/big_file_upload_configuration.html) for more information.
 
-6
-
-Maximum number of parallel jobs.
-
-OWNCLOUD_BLACKLIST_TIME_MIN
-
-25
-
-Minimum timeout, in seconds, for blacklisted files.
-
-OWNCLOUD_BLACKLIST_TIME_MAX
-
-24*60*60
-(or one day)
-
-Maximum timeout, in seconds, for blacklisted files.
-
-OWNCLOUD_HTTP2_ENABLED
-
-depend on Qt version
-
-Force-enable ("1") or force-disable ("0") HTTP2 support. Note that HTTP2 use also depends on whether the server supports it.
-
-OWNCLOUD_TRAY_UPDATE_WHILE_VISIBLE
-
-0
-
-Set to "1" to allow the tray menu to be updated while it’s visible to the user.
-
-OWNCLOUD_FORCE_TRAY_SHOW_HIDE
-
-unset
-
-Set to "1" to reestablish the tray icon every time the menu changes.
-
-OWNCLOUD_FORCE_TRAY_FAKE_DOUBLE_CLICK
-
-unset
-
-Set to "1" if single tray clicks sometimes get recognized as double clicks.
-
-OWNCLOUD_FORCE_TRAY_MANUAL_VISIBILITY
-
-unset
-
-Set to "1" if the tray menu is flickering while opened.
-
-OWNCLOUD_FORCE_TRAY_NO_ABOUT_TO_SHOW
-
-unset
-
-Set to "1" if the tray menu sometimes contains stale entries.
-
-OWNCLOUD_FULL_LOCAL_DISCOVERY_INTERVAL
-
-3600000
-(1 hour)
-
-Maximum time in milliseconds that fast local discovery is allowed for after a full local discovery. Set to 0 to always require full local discovery. Set to -1 to never require full local discovery.
-
-OWNCLOUD_SQLITE_JOURNAL_MODE
-
-depends on filesystem
-
-Set a specific sqlite journal mode.
-
-OWNCLOUD_SQLITE_LOCKING_MODE
-
-EXCLUSIVE
-
-Set a specific sqlite locking mode.
-
-OWNCLOUD_SQLITE_TEMP_STORE
-
-unset
-
-Set the given temp_store on the sqlite database.
-
-OWNCLOUD_DISABLE_CHECKSUM_COMPUTATIONS
-
-unset
-
-Set to disable all file checksum computations.
-
-OWNCLOUD_DISABLE_CHECKSUM_UPLOAD
-
-unset
-
-Set to disable computing checksums for uploaded files.
-
-OWNCLOUD_CONTENT_CHECKSUM_TYPE
-
-SHA1
-
-Select the file checksumming algorithm. "Adler32", "MD5", "SHA1", "SHA256", "SHA3-256" are valid, but not all have server support.
-
-OWNCLOUD_UPLOAD_CONFLICT_FILES
-
-unset
-
-Set to "1" to enable uploading conflict files to the server.
-
-OWNCLOUD_OVERRIDE_SERVER_URL
-
-unset
-
-Set to override a previously configured/branded server URL
-
-OCC_UPDATE_URL
-
-unset
-
-This value can be set in the environment of the client to let the client choose a different update URL for testing purposes.
-
-QT_LOGGING_RULES
-
-unset
-
-This value can be used to control the log content, see examples at Control Log Content and Controlling Messages.
-```
+To customize Apache max file upload limit you can change the following variable:
+- `APACHE_BODY_LIMIT` (default `1073741824` [1GiB]) This restricts the total
+size of the HTTP request body sent from the client. It specifies the number of _bytes_ that are allowed in a request body. A value of **0** means **unlimited**. Check the [Nextcloud documentation](https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/big_file_upload_configuration.html#apache) for more information.

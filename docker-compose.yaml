@@ -1,13 +1,13 @@
 version: '3.8'
 services:
-  owncloud:
-    container_name: owncloud
+  personalcloud:
+    container_name: personalcloud
     volumes:
-      - "./shared/:/mnt/data"
+      - "./shared/:/shared"
     env_file:
-      - ./env/.env_owncloud
+      - ./env/.env_personalcloud
     ports:
-      - "8080:8080"
+      - "8080:80"
     build:
       context: .
       dockerfile: ./docker/Dockerfile
