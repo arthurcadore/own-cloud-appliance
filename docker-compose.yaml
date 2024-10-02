@@ -3,7 +3,7 @@ services:
   personalcloud:
     container_name: personalcloud
     volumes:
-      - "./shared/:/shared"
+      - "./shared/:/var/www/html/data"
     env_file:
       - ./env/.env_personalcloud
     ports:
